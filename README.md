@@ -80,3 +80,14 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
   ```
 - **产生的文件**：
   - [04_test_mujoco_shared.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/04_test_mujoco_shared.py) (多进程共享内存通信与握手测试脚本)
+
+### 步骤 6：手写向量化多环境与批量共享内存测试（`tests/05_test_mujoco_vector_shared.py`）
+- **发生时间**：2026-06-09 17:17:30 (CST)
+- **目的作用**：将共享内存数据通道从单环境（1D Tensor）扩展为多环境批处理（2D Tensor），在子进程中运行并行环境采样，实现真正的“批量异构并行”。
+- **执行的命令**：
+  ```bash
+  .venv/bin/python tests/05_test_mujoco_vector_shared.py
+  ```
+- **产生的文件**：
+  - [05_test_mujoco_vector_shared.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/05_test_mujoco_vector_shared.py) (批量共享内存多环境通信与同步测试脚本)
+
