@@ -61,3 +61,13 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
 - **产生的文件**：
   - [test_mujoco_visual.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/test_mujoco_visual.py) (带渲染和正弦波控制的测试脚本)
 
+### 步骤 4：手写单进程 Gymnasium 环境封装（`tests/test_mujoco_gym.py`）
+- **发生时间**：2026-06-09 15:46:50 (CST)
+- **目的作用**：将底层的 MuJoCo 仿真封装为标准的强化学习 Gymnasium 接口，定义 22 维控制空间与 44 维关节状态观测空间，完成单进程 RL 闭环封装。
+- **执行的命令**：
+  ```bash
+  .venv/bin/python tests/test_mujoco_gym.py
+  ```
+- **产生的文件**：
+  - [test_mujoco_gym.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/test_mujoco_gym.py) (Gymnasium 环境封装及调试入口脚本)
+
