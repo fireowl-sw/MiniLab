@@ -39,3 +39,14 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
     - [scene.xml](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/assets/robots/sharpa_wave/scene.xml) (仿真场景定义文件)
     - [right_sharpa_wave.xml](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/assets/robots/sharpa_wave/right_sharpa_wave.xml) (右手 Sharpa 机器人结构定义文件)
     - [meshes/](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/assets/robots/sharpa_wave/meshes/) (机器手网格模型 STL 文件目录)
+
+### 步骤 2：手写第一个 MuJoCo 加载测试脚本（`tests/test_mujoco.py`）
+- **发生时间**：2026-06-09 15:21:05 (CST)
+- **目的作用**：验证我们能否利用原生 MuJoCo API 成功加载和读取 Sharpa 机器手的物理描述文件，提取关键控制维度。
+- **代码原理简述**：使用 `mujoco.MjModel.from_xml_path` 加载描述模型静态结构和属性的 `MjModel`；使用 `mujoco.MjData` 构建存储仿真运行状态与动力学变量的 `MjData`。
+- **执行的命令**：
+  ```bash
+  uv run python tests/test_mujoco.py
+  ```
+- **产生的文件**：
+  - [test_mujoco.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/test_mujoco.py) (首个 MuJoCo 加载测试脚本)
