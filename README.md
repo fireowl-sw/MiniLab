@@ -50,3 +50,14 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
   ```
 - **产生的文件**：
   - [test_mujoco.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/test_mujoco.py) (首个 MuJoCo 加载测试脚本)
+
+### 步骤 3：手写机器手 3D 交互式可视化与正弦波控制（`tests/test_mujoco_visual.py`）
+- **发生时间**：2026-06-09 15:29:10 (CST)
+- **目的作用**：新建可视化测试脚本，通过注册 MuJoCo 的控制回调函数（`mujoco.set_mjcb_control`）进行 22 维致动器的正弦波控制，并利用 `mujoco.viewer.launch` 启动管理式 3D 可视化窗口。该方法保证渲染主循环在主线程运行，完美兼容 macOS 环境。
+- **执行的命令**：
+  ```bash
+  .venv/bin/python tests/test_mujoco_visual.py
+  ```
+- **产生的文件**：
+  - [test_mujoco_visual.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/test_mujoco_visual.py) (带渲染和正弦波控制的测试脚本)
+
