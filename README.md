@@ -126,6 +126,16 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
   - [sharpa.yaml](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/conf/env/sharpa.yaml) (Sharpa 环境配置文件)
   - [ppo.yaml](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/conf/algo/ppo.yaml) (PPO 算法配置文件)
 
+### 步骤 10：手写 PPO 控制策略的 3D 渲染与评估脚本（`scripts/eval.py`）
+- **发生时间**：2026-06-10 17:51:30 (CST)
+- **目的作用**：编写 PPO 控制策略的 3D 渲染与评估脚本，载入训练好的神经网络权重，并在 MuJoCo GUI 窗口中以确定性策略（动作均值）控制 Sharpa 机器手，直观观测模型控制器的物理表现。
+- **执行的命令**：
+  ```bash
+  .venv/bin/python scripts/eval.py
+  ```
+- **产生的文件**：
+  - [eval.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/scripts/eval.py) (PPO 策略 3D 评估与渲染脚本)
+
 
 
 
