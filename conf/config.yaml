@@ -1,0 +1,9 @@
+defaults:
+  - _self_
+  - env: sharpa
+  - algo: ppo
+
+seed: 42
+device: cpu
+total_updates: 30
+weights_dir: weights

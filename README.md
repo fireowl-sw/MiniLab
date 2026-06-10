@@ -114,5 +114,18 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
   - [ppo.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/algos/ppo.py) (ActorCritic 神经网络定义)
   - [train.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/scripts/train.py) (PPO 策略训练主入口程序)
 
+### 步骤 9：引入配置管理器 Hydra 并重构训练脚本
+- **发生时间**：2026-06-10 16:58:30 (CST)
+- **目的作用**：为项目引入 Facebook 的配置管理工具 Hydra，将算法和环境的超参数抽离到外部 YAML 文件（如 `conf/config.yaml`、`conf/env/sharpa.yaml`、`conf/algo/ppo.yaml`）中，使超参数更加集中且支持在命令行进行无代码级覆盖。
+- **执行的命令**：
+  ```bash
+  .venv/bin/python scripts/train.py algo.lr=0.0001 total_updates=10
+  ```
+- **产生的文件**：
+  - [config.yaml](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/conf/config.yaml) (Hydra 主配置文件)
+  - [sharpa.yaml](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/conf/env/sharpa.yaml) (Sharpa 环境配置文件)
+  - [ppo.yaml](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/conf/algo/ppo.yaml) (PPO 算法配置文件)
+
+
 
 

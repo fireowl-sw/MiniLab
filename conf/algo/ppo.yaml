@@ -1,0 +1,10 @@
+lr: 3e-4
+rollout_steps: 128
+gamma: 0.99
+gae_lambda: 0.95
+ppo_epochs: 4
+mini_batch_size: 32
+clip_coef: 0.2
+ent_coef: 0.01
+vf_coef: 0.5
+max_grad_norm: 0.5
