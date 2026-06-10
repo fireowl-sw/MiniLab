@@ -19,7 +19,7 @@ data = mujoco.MjData(model)
 def controller_cb(model, data):
     # 计算正弦控制信号 (幅值为 0.5，角频率为 2.0 rad/s)
     # 利用 data.time (仿真时间) 计算正弦值，以确保控制信号与仿真时钟保持同步
-    sin_val = np.sin(data.time * 2.0) * 0.5
+    sin_val = np.sin(data.time * 2.0) * -1
     
     # 将控制信号赋给所有致动器 (Actuators) -- 电机控制信号
     # data.ctrl 是一维数组，大小为 model.nu (22)。使用 [:] 将标量值广播赋予所有 22 维致动器接口。

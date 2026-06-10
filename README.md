@@ -91,3 +91,14 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
 - **产生的文件**：
   - [05_test_mujoco_vector_shared.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/05_test_mujoco_vector_shared.py) (批量共享内存多环境通信与同步测试脚本)
 
+### 步骤 7：手写 PPO 策略网络与轨迹收集测试（`tests/06_test_ppo_collect.py`）
+- **发生时间**：2026-06-09 18:00:00 (CST)
+- **目的作用**：定义 Actor-Critic 对角高斯策略网络，主进程通过批量共享内存与仿真子进程进行交互，并维护 32 步 Rollout Buffer 收集采样轨迹。利用 GAE 进行优势估计，计算并反向传播 PPO 损失函数，打通神经网络计算图。
+- **执行的命令**：
+  ```bash
+  .venv/bin/python tests/06_test_ppo_collect.py
+  ```
+- **产生的文件**：
+  - [06_test_ppo_collect.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/06_test_ppo_collect.py) (PPO 策略推理、轨迹收集与反向传播测试脚本)
+
+
