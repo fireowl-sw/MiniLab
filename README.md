@@ -101,4 +101,18 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
 - **产生的文件**：
   - [06_test_ppo_collect.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/06_test_ppo_collect.py) (PPO 策略推理、轨迹收集与反向传播测试脚本)
 
+### 步骤 8：重构模块化项目包与 PPO 策略训练流水线（`scripts/train.py` 等）
+- **发生时间**：2026-06-10 16:48:50 (CST)
+- **目的作用**：将前期零散测试代码重构整理为符合标准项目结构的模块化包（如 `envs`、`ipc`、`algos` 包），并编写首个完整 PPO 强化学习训练流水线 `scripts/train.py`，实现多环境并行轨迹采集与策略参数自我演进。
+- **执行的命令**：
+  ```bash
+  .venv/bin/python scripts/train.py
+  ```
+- **产生的文件**：
+  - [sharpa_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/envs/sharpa_env.py) (标准环境封装)
+  - [vector_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/ipc/vector_env.py) (多进程向量化环境 IPC 封装)
+  - [ppo.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/algos/ppo.py) (ActorCritic 神经网络定义)
+  - [train.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/scripts/train.py) (PPO 策略训练主入口程序)
+
+
 
