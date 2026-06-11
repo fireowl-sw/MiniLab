@@ -123,8 +123,8 @@ class BatchVectorEnv:
         object_linvel = qvel_batch[:, 22:25]
         object_angvel = qvel_batch[:, 25:28]
         
-        # 4.1 沿 Z 轴的旋转速度奖励 (rot_axis 默认是 [0.0, 0.0, 1.0], 对应 object_angvel 的 Z 轴速度)
-        rotate_reward = np.clip(object_angvel[:, 2], -1.0, 1.0)
+        # 4.1 沿 Z 轴的旋转速度奖励 (取绝对值，允许顺时针或逆时针旋转，使策略探索更易收敛)
+        rotate_reward = np.clip(np.abs(object_angvel[:, 2]), 0.0, 1.0)
         
         # 4.2 物体移动位移惩罚
         linvel_penalty = -1.0 * np.sum(np.square(object_linvel), axis=1)
@@ -140,7 +140,7 @@ class BatchVectorEnv:
         action_penalty = -0.01 * np.sum(np.square(actions_np), axis=1)
         
         rewards = (
-            2.0 * rotate_reward + 
+            5.0 * rotate_reward + 
             0.5 * linvel_penalty + 
             5.0 * pos_holding_reward + 
             1.0 * pose_penalty + 

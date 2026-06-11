@@ -98,8 +98,8 @@ class SharpaHandGymEnv(gym.Env):
         object_angvel = self.data.qvel[self.num_joints+3:self.num_joints+6]
         
         # 4. 计算复合奖励
-        # 4.1 沿 Z 轴的旋转速度奖励
-        rotate_reward = np.clip(np.sum(object_angvel * self.rot_axis), -1.0, 1.0)
+        # 4.1 沿 Z 轴的旋转速度奖励 (取绝对值，允许顺时针或逆时针旋转，使策略探索更易收敛)
+        rotate_reward = np.clip(np.abs(np.sum(object_angvel * self.rot_axis)), 0.0, 1.0)
         
         # 4.2 物体移动位移惩罚
         linvel_penalty = -1.0 * np.sum(np.square(object_linvel))
@@ -116,7 +116,7 @@ class SharpaHandGymEnv(gym.Env):
         action_penalty = -0.01 * np.sum(np.square(action))
         
         reward = float(
-            2.0 * rotate_reward + 
+            5.0 * rotate_reward + 
             0.5 * linvel_penalty + 
             5.0 * pos_holding_reward + 
             1.0 * pose_penalty + 
