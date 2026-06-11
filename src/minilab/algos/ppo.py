@@ -32,7 +32,9 @@ class ActorCritic(nn.Module):
     def get_action_and_value(self, x, action=None):
         """前向传播计算动作分布、值及 Log 概率"""
         action_mean = self.actor(x)
-        action_std = self.actor_logstd.exp()
+        # 限制 log_std 在 [-2.0, -0.5] 之间，防止探索发散，维持手部的精细微调动作
+        log_std = torch.clamp(self.actor_logstd, -2.0, -0.5)
+        action_std = log_std.exp()
         
         # 构造高斯分布
         dist = torch.distributions.Normal(action_mean, action_std)

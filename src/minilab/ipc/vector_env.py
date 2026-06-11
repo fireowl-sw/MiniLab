@@ -118,6 +118,7 @@ class BatchVectorEnv:
         qpos_batch = next_states[:, 1 : 1 + self.nq]
         qvel_batch = next_states[:, 1 + self.nq : 1 + self.nq + self.nv]
         
+        hand_qpos = qpos_batch[:, :22]
         object_pos = qpos_batch[:, 22:25]
         object_linvel = qvel_batch[:, 22:25]
         object_angvel = qvel_batch[:, 25:28]
@@ -128,24 +129,28 @@ class BatchVectorEnv:
         # 4.2 物体移动位移惩罚
         linvel_penalty = -1.0 * np.sum(np.square(object_linvel), axis=1)
         
-        # 4.3 物体偏离中心锚点的距离倒数奖励
+        # 4.3 物体偏离中心锚点的位置保持奖励 (指数衰减，最大为1.0，保证数值稳定性)
         dist_to_anchor = np.linalg.norm(object_pos - self.object_pos_anchor, axis=1)
-        pos_holding_reward = 1.0 / (dist_to_anchor + 0.001)
+        pos_holding_reward = np.exp(-20.0 * dist_to_anchor)
         
-        # 4.4 动作惩罚
+        # 4.4 关节姿态偏差惩罚 (鼓励手部关节靠近初始抓握姿态，防止小手指发散或弯曲)
+        pose_penalty = -0.5 * np.sum(np.square(hand_qpos - self.default_angles), axis=1)
+        
+        # 4.5 动作惩罚
         action_penalty = -0.01 * np.sum(np.square(actions_np), axis=1)
         
         rewards = (
-            1.5 * rotate_reward + 
-            0.1 * linvel_penalty + 
-            0.5 * pos_holding_reward + 
+            2.0 * rotate_reward + 
+            0.5 * linvel_penalty + 
+            5.0 * pos_holding_reward + 
+            1.0 * pose_penalty + 
             action_penalty
         )
         
         # 5. 坠落终止判定 (低于锚点高度 10 厘米判定为坠落)
         dones = object_pos[:, 2] < (self.object_pos_anchor[2] - 0.1)
         # 坠落惩罚
-        rewards[dones] -= 10.0
+        rewards[dones] -= 5.0
         
         # 6. Auto-reset 自动重置已完成/坠落的环境
         reset_indices = np.where(dones)[0]

@@ -104,17 +104,22 @@ class SharpaHandGymEnv(gym.Env):
         # 4.2 物体移动位移惩罚
         linvel_penalty = -1.0 * np.sum(np.square(object_linvel))
         
-        # 4.3 物体偏离中心锚点的距离倒数奖励
+        # 4.3 物体偏离中心锚点的位置保持奖励 (指数衰减，最大为1.0，保证数值稳定性)
         dist_to_anchor = np.linalg.norm(object_pos - self.object_pos_anchor)
-        pos_holding_reward = 1.0 / (dist_to_anchor + 0.001)
+        pos_holding_reward = np.exp(-20.0 * dist_to_anchor)
         
-        # 4.4 动作惩罚
+        # 4.4 关节姿态偏差惩罚 (鼓励手部关节靠近初始抓握姿态，防止小手指发散或弯曲)
+        hand_qpos = self.data.qpos[:self.num_joints]
+        pose_penalty = -0.5 * np.sum(np.square(hand_qpos - self.default_angles))
+        
+        # 4.5 动作惩罚
         action_penalty = -0.01 * np.sum(np.square(action))
         
         reward = float(
-            1.5 * rotate_reward + 
-            0.1 * linvel_penalty + 
-            0.5 * pos_holding_reward + 
+            2.0 * rotate_reward + 
+            0.5 * linvel_penalty + 
+            5.0 * pos_holding_reward + 
+            1.0 * pose_penalty + 
             action_penalty
         )
         
@@ -122,7 +127,7 @@ class SharpaHandGymEnv(gym.Env):
         terminated = False
         if object_pos[2] < (self.object_pos_anchor[2] - 0.1):
             terminated = True
-            reward -= 10.0  # 坠落惩罚
+            reward -= 5.0  # 坠落惩罚
             
         truncated = False
         return obs, reward, terminated, truncated, {}
