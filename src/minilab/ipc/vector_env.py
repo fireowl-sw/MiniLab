@@ -40,6 +40,9 @@ class BatchVectorEnv:
         
         # 5. 初始化保存环境当前 State 状态的批处理数组
         self.states = np.tile(self.init_state_single, (self.num_envs, 1))
+        
+        # 初始化上一时刻虚拟控制目标 (对于每个平行环境)
+        self.prev_targets = np.tile(self.default_angles, (self.num_envs, 1))
 
     def reset(self):
         # 批量重置所有环境的状态
@@ -49,6 +52,9 @@ class BatchVectorEnv:
         # 使用 pool.reset 批量初始化 C++ thread datas
         reset_states, _ = self.pool.reset(env_ids, initial_states)
         self.states = reset_states.copy()
+        
+        # 重置虚拟控制目标 prev_targets
+        self.prev_targets = np.tile(self.default_angles, (self.num_envs, 1))
         
         # 计算批量观测并返回 torch.Tensor
         obs = self._get_obs(self.states)
@@ -100,19 +106,18 @@ class BatchVectorEnv:
         # 1. 计算 PD 增量控制目标 (从当前的 hand_qpos 计算，qpos 位于 states 的 1 : 1 + nq 范围)
         qpos_batch = self.states[:, 1 : 1 + self.nq]
         current_qpos = qpos_batch[:, :22]
-        target_ctrl = current_qpos + actions_np / 24.0
+        target_ctrl = self.prev_targets + actions_np / 24.0
         
         # 裁剪 ctrl 范围
         ctrl_min = self.model.actuator_ctrlrange[:22, 0]
         ctrl_max = self.model.actuator_ctrlrange[:22, 1]
-        target_ctrl = np.clip(target_ctrl, ctrl_min, ctrl_max)
+        self.prev_targets = np.clip(target_ctrl, ctrl_min, ctrl_max)
         
-        # 2. 构造 control trajectory: shape (nbatch, nstep, nu) = (num_envs, 1, 22)
-        control = target_ctrl[:, None, :]
+        # 2. 构造 control trajectory: shape (nbatch, nstep, nu) = (num_envs, 12, 22)
+        control = np.repeat(self.prev_targets[:, None, :], 12, axis=1)
         
         # 3. 物理并行步进
-        # pool.step 返回最新的状态向量，形状为 (nbatch, nstate)
-        next_states = self.pool.step(self.states, nstep=1, control=control)
+        next_states = self.pool.step(self.states, nstep=12, control=control)
         
         # 4. 计算奖励与 done (terminated/truncated)
         qpos_batch = next_states[:, 1 : 1 + self.nq]
@@ -123,34 +128,28 @@ class BatchVectorEnv:
         object_linvel = qvel_batch[:, 22:25]
         object_angvel = qvel_batch[:, 25:28]
         
-        # 4.1 沿 Z 轴的旋转速度奖励 (取绝对值，允许顺时针或逆时针旋转，使策略探索更易收敛)
-        rotate_reward = np.clip(np.abs(object_angvel[:, 2]), 0.0, 1.0)
+        # 4.1 对称绝对值旋转速度奖励 (权重 5.0，clip 0~1.0)
+        rotate_reward = 5.0 * np.clip(np.abs(object_angvel[:, 2]), 0.0, 1.0)
         
-        # 4.2 物体移动位移惩罚
-        linvel_penalty = -1.0 * np.sum(np.square(object_linvel), axis=1)
-        
-        # 4.3 物体偏离中心锚点的位置保持奖励 (指数衰减，最大为1.0，保证数值稳定性)
+        # 4.2 物体偏离中心锚点的距离惩罚 (常数梯度，消除自锁)
         dist_to_anchor = np.linalg.norm(object_pos - self.object_pos_anchor, axis=1)
-        pos_holding_reward = np.exp(-20.0 * dist_to_anchor)
+        dist_penalty = -10.0 * dist_to_anchor
         
-        # 4.4 关节姿态偏差惩罚 (鼓励手部关节靠近初始抓握姿态，防止小手指发散或弯曲)
-        pose_penalty = -0.5 * np.sum(np.square(hand_qpos - self.default_angles), axis=1)
+        # 4.3 关节姿态偏差惩罚 (权重 -0.4)
+        pose_diff_penalty = -0.4 * np.sum(np.square(hand_qpos - self.default_angles), axis=1)
+        
+        # 4.4 物体移动速度惩罚 (权重 -0.3)
+        linvel_penalty = -0.3 * np.sum(np.abs(object_linvel), axis=1)
         
         # 4.5 动作惩罚
         action_penalty = -0.01 * np.sum(np.square(actions_np), axis=1)
         
-        rewards = (
-            5.0 * rotate_reward + 
-            0.5 * linvel_penalty + 
-            5.0 * pos_holding_reward + 
-            1.0 * pose_penalty + 
-            action_penalty
-        )
+        rewards = rotate_reward + dist_penalty + pose_diff_penalty + linvel_penalty + action_penalty
         
         # 5. 坠落终止判定 (低于锚点高度 10 厘米判定为坠落)
         dones = object_pos[:, 2] < (self.object_pos_anchor[2] - 0.1)
         # 坠落惩罚
-        rewards[dones] -= 5.0
+        rewards[dones] -= 10.0
         
         # 6. Auto-reset 自动重置已完成/坠落的环境
         reset_indices = np.where(dones)[0]
@@ -158,6 +157,8 @@ class BatchVectorEnv:
             reset_init_states = np.tile(self.init_state_single, (len(reset_indices), 1))
             reset_states, _ = self.pool.reset(reset_indices, reset_init_states)
             next_states[reset_indices] = reset_states
+            # 对重置的环境重置虚拟控制目标 prev_targets
+            self.prev_targets[reset_indices] = self.default_angles.copy()
             
         # 7. 更新内部状态并计算观测
         self.states = next_states.copy()
