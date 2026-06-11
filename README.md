@@ -136,6 +136,17 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
 - **产生的文件**：
   - [eval.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/scripts/eval.py) (PPO 策略 3D 评估与渲染脚本)
 
+### 步骤 11：手写手内操作（In-hand Manipulation） Gymnasium 环境
+- **发生时间**：2026-06-11 17:21:00 (CST)
+- **目的作用**：重构环境库代码以支持手内圆柱体操作任务。在 reset 时将手部初始化为捏紧姿态，物体置于掌心上方；扩展状态观测空间至 60 维，包含手部关节状态、物体 3D 姿态与速度以及目标旋转轴；在 step 中计算包含 Z 轴旋转速度、位移惩罚、锚点对齐及动作惩罚的复合奖励函数，并实现低于阈值时判定坠落的 episode 终止逻辑。
+- **执行的命令**：
+  ```bash
+  .venv/bin/python tests/07_test_inhand_gym.py
+  ```
+- **产生的文件**：
+  - [sharpa_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/envs/sharpa_env.py) (重构后的手内操作 Gymnasium 环境类)
+  - [07_test_inhand_gym.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/07_test_inhand_gym.py) (单进程手内操作环境物理与维度测试脚本)
+
 
 
 

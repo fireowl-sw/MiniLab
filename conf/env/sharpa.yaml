@@ -1,4 +1,4 @@
 name: sharpa_wave
-num_envs: 4
-obs_dim: 44
+num_envs: 8
+obs_dim: 60
 action_dim: 22
