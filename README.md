@@ -147,6 +147,17 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
   - [sharpa_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/envs/sharpa_env.py) (重构后的手内操作 Gymnasium 环境类)
   - [07_test_inhand_gym.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/07_test_inhand_gym.py) (单进程手内操作环境物理与维度测试脚本)
 
+### 步骤 12：实现 C++ 原生并行 VectorEnv 与验证
+- **发生时间**：2026-06-11 17:32:00 (CST)
+- **目的作用**：废弃原基于 Python multiprocessing 的多进程共享内存方案，重构并升级为基于 MuJoCo C++ 原生多线程并行仿真底座的 BatchEnvPool。该方案实现了全向量化的 reset、step 计算、状态提取（兼容并修复了 mjSTATE_FULLPHYSICS 的 time 偏移问题）以及自动重置（Auto-reset）机制，从而彻底避免了 Python GIL 限制和跨进程拷贝开销。
+- **执行的命令**：
+  ```bash
+  .venv/bin/python tests/08_test_inhand_vector.py
+  ```
+- **产生的文件**：
+  - [vector_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/ipc/vector_env.py) (重构后的 C++ BatchEnvPool 向量化并行环境类)
+  - [08_test_inhand_vector.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/08_test_inhand_vector.py) (C++ 并行向量环境功能与自动重置验证脚本)
+
 
 
 
