@@ -9,7 +9,6 @@ from omegaconf import DictConfig
 
 # 将 src 目录添加到模块查找路径中
 sys.path.append(os.path.join(os.path.dirname(__file__), "../src"))
-
 from minilab.algos.ppo import ActorCritic
 
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
@@ -41,12 +40,39 @@ def eval(cfg: DictConfig):
     model = mujoco.MjModel.from_xml_path(xml_path)
     data = mujoco.MjData(model)
     
+    # 初始化手部姿势与物体位置，匹配训练重置状态
+    from minilab.envs.sharpa_env import SOURCE_DEFAULT_HAND_JOINT_POS_DEG
+    default_angles = np.deg2rad(np.asarray(SOURCE_DEFAULT_HAND_JOINT_POS_DEG, dtype=np.float32))
+    object_pos_anchor = np.array([-0.09559, -0.00517, 0.61906], dtype=np.float32)
+    rot_axis = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+    
+    data.qpos[:action_dim] = default_angles
+    data.ctrl[:action_dim] = default_angles
+    data.qpos[action_dim:action_dim+3] = object_pos_anchor
+    data.qpos[action_dim+3:action_dim+7] = np.array([1.0, 0.0, 0.0, 0.0])
+    mujoco.mj_forward(model, data)
+    
     # 4. 编写物理控制回调函数 (注入训练好的策略)
     def controller_cb(model, data):
-        # 提取当前状态的关节角度位置与速度 (22 + 22 = 44维)
+        # 提取当前状态的关节角度位置与速度
         qpos = data.qpos[:action_dim].copy()
         qvel = data.qvel[:action_dim].copy()
-        obs = np.concatenate([qpos, qvel]).astype(np.float32)
+        
+        # 提取物体坐标与旋转四元数
+        object_pos = data.qpos[action_dim:action_dim+3].copy()
+        object_quat = data.qpos[action_dim+3:action_dim+7].copy()
+        
+        # 提取物体的线速度与角速度
+        object_linvel = data.qvel[action_dim:action_dim+3].copy()
+        object_angvel = data.qvel[action_dim+3:action_dim+6].copy()
+        
+        # 拼接成 60 维观测向量
+        obs = np.concatenate([
+            qpos, qvel,
+            object_pos, object_quat,
+            object_linvel, object_angvel,
+            rot_axis
+        ]).astype(np.float32)
         
         # 转换为 PyTorch Tensor 输入给策略网络
         obs_tensor = torch.from_numpy(obs).unsqueeze(0).to(device)

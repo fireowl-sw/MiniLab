@@ -158,6 +158,17 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
   - [vector_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/ipc/vector_env.py) (重构后的 C++ BatchEnvPool 向量化并行环境类)
   - [08_test_inhand_vector.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/tests/08_test_inhand_vector.py) (C++ 并行向量环境功能与自动重置验证脚本)
 
+### 步骤 13：PPO 实机训练与 3D 物理效果评估
+- **发生时间**：2026-06-11 17:54:00 (CST)
+- **目的作用**：修复 `scripts/eval.py` 使其支持 60 维状态观测与默认捏球姿态初始对齐。调整配置参数 `total_updates: 1000` 并通过 C++ 原生并行 `BatchEnvPool` 环境底座启动 PPO 强化学习策略训练。训练吞吐率由多进程的约 3000 FPS 暴涨至 **约 10000 FPS**，仅用约 100 秒即完成了 100 万步物理交互；平均奖励稳定上升至正数区间并收敛，成功保存了 `ppo_sharpa.pt` 权重。拉起评估窗口后，可直观观测到机器手成功实现捏球姿态，并尝试在手内对红色圆柱体实施旋转操作。
+- **执行的命令**：
+  ```bash
+  .venv/bin/python scripts/train.py
+  .venv/bin/python scripts/eval.py
+  ```
+- **产生的文件**：
+  - [eval.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/scripts/eval.py) (重构后的手内操作策略 3D 渲染与评估脚本)
+
 
 
 

@@ -5,5 +5,5 @@ defaults:
 
 seed: 42
 device: cpu
-total_updates: 30
+total_updates: 1000
 weights_dir: weights
