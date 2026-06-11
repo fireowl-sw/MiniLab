@@ -4,24 +4,37 @@ import torch.nn as nn
 class ActorCritic(nn.Module):
     def __init__(self, obs_dim=44, action_dim=22):
         super().__init__()
-        self.shared = nn.Sequential(
+        # 1. 独立的 Actor 决策网络 (从状态直接映射到动作均值)
+        self.actor = nn.Sequential(
             nn.Linear(obs_dim, 64),
             nn.Tanh(),
             nn.Linear(64, 64),
-            nn.Tanh()
+            nn.Tanh(),
+            nn.Linear(64, action_dim)
         )
-        self.actor_mean = nn.Linear(64, action_dim)
-        self.actor_logstd = nn.Parameter(torch.zeros(action_dim))
-        self.critic = nn.Linear(64, 1)
+        
+        # 2. 独立的 Critic 估值网络 (从状态直接映射到状态价值 V)
+        self.critic = nn.Sequential(
+            nn.Linear(obs_dim, 64),
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, 1)
+        )
+        
+        # 3. 将 log_std 初始值从 0.0 降低到 -0.5 (限制初始乱晃幅度，使探索更加聚焦和安全)
+        self.actor_logstd = nn.Parameter(torch.fill(torch.zeros(action_dim), -0.5))
 
     def get_value(self, x):
-        hidden = self.shared(x)
-        return self.critic(hidden)
+        """Critic 前向传播"""
+        return self.critic(x)
 
     def get_action_and_value(self, x, action=None):
-        hidden = self.shared(x)
-        action_mean = self.actor_mean(hidden)
+        """前向传播计算动作分布、值及 Log 概率"""
+        action_mean = self.actor(x)
         action_std = self.actor_logstd.exp()
+        
+        # 构造高斯分布
         dist = torch.distributions.Normal(action_mean, action_std)
         
         if action is None:
@@ -29,6 +42,6 @@ class ActorCritic(nn.Module):
             
         log_prob = dist.log_prob(action).sum(dim=-1)
         entropy = dist.entropy().sum(dim=-1)
-        value = self.critic(hidden)
+        value = self.critic(x)
         
         return action, log_prob, entropy, value

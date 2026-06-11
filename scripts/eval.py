@@ -53,8 +53,7 @@ def eval(cfg: DictConfig):
         
         with torch.no_grad():
             # 获取确定性动作均值 (Evaluation 时不进行高斯随机采样)
-            hidden = agent.shared(obs_tensor)
-            action_mean = agent.actor_mean(hidden).squeeze(0).cpu().numpy()
+            action_mean = agent.actor(obs_tensor).squeeze(0).cpu().numpy()
             
         # 动作幅度限制在 [-1.0, 1.0] 内，计算物理增量位置控制
         action_clipped = np.clip(action_mean, -1.0, 1.0)
