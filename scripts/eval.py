@@ -77,7 +77,7 @@ def eval(cfg: DictConfig):
         renderer = mujoco.Renderer(model, height=480, width=640)
         frames = []
         
-        for step in range(100):
+        for step in range(300):
             # 1. 提取当前状态并推理动作
             qpos = data.qpos[:action_dim].copy()
             qvel = data.qvel[:action_dim].copy()
