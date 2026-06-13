@@ -8,6 +8,13 @@ import mujoco.viewer
 import hydra
 from omegaconf import DictConfig
 
+# macOS 平台自动重定向到 mjpython 运行，以支持 launch_passive
+if sys.platform == "darwin" and not os.environ.get("MJPYTHON_BIN"):
+    mjpython_bin = os.path.join(os.path.dirname(sys.executable), "mjpython")
+    if os.path.exists(mjpython_bin):
+        print(f"[评估进程] 检测到未在 mjpython 下运行，正在自动重启并切换至: {mjpython_bin}")
+        os.execv(mjpython_bin, [mjpython_bin] + sys.argv)
+
 # 将 src 目录添加到模块查找路径中
 sys.path.append(os.path.join(os.path.dirname(__file__), "../src"))
 from minilab.algos.ppo import ActorCritic
