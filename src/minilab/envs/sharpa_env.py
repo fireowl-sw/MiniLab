@@ -136,9 +136,9 @@ class SharpaHandGymEnv(gym.Env):
         # 5.2 obj_linvel (物体平移惩罚)
         linvel_penalty = np.sum(np.abs(v_obj)) * -0.3
         # 5.3 pose_diff (关节偏离惩罚)
-        pose_diff_penalty = np.sum(np.square(qpos - self.default_angles)) * -0.4
+        pose_diff_penalty = np.sum(np.square(qpos - self.default_angles)) * -0.1
         # 5.4 torque (控制力矩惩罚)
-        torque_penalty = np.sum(np.square(torque_virtual)) * -0.1
+        torque_penalty = np.sum(np.square(torque_virtual)) * -0.02
         # 5.5 work (物理功惩罚)
         work_penalty = (np.sum(torque_virtual * qvel)) ** 2 * -0.5
         # 5.6 object_pos (位置锚定奖励)

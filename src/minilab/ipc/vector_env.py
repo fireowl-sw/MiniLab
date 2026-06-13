@@ -181,10 +181,10 @@ class BatchVectorEnv:
         linvel_penalty = np.sum(np.abs(object_linvel), axis=1) * -0.3
         
         # 4.3 pose_diff (关节姿态偏差惩罚)
-        pose_diff_penalty = np.sum(np.square(hand_qpos - self.default_angles[None, :]), axis=1) * -0.4
+        pose_diff_penalty = np.sum(np.square(hand_qpos - self.default_angles[None, :]), axis=1) * -0.1
         
         # 4.4 torque (力矩惩罚)
-        torque_penalty = np.sum(np.square(torque_virtual), axis=1) * -0.1
+        torque_penalty = np.sum(np.square(torque_virtual), axis=1) * -0.02
         
         # 4.5 work (物理功惩罚)
         work_penalty = (np.sum(torque_virtual * hand_qvel, axis=1)) ** 2 * -0.5

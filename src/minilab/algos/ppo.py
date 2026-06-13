@@ -6,19 +6,23 @@ class ActorCritic(nn.Module):
         super().__init__()
         # 1. 独立的 Actor 决策网络 (从状态直接映射到动作均值)
         self.actor = nn.Sequential(
-            nn.Linear(obs_dim, 128),
-            nn.Tanh(),
-            nn.Linear(128, 128),
-            nn.Tanh(),
+            nn.Linear(obs_dim, 512),
+            nn.ELU(),
+            nn.Linear(512, 256),
+            nn.ELU(),
+            nn.Linear(256, 128),
+            nn.ELU(),
             nn.Linear(128, action_dim)
         )
         
         # 2. 独立的 Critic 估值网络 (从状态直接映射到状态价值 V)
         self.critic = nn.Sequential(
-            nn.Linear(obs_dim, 128),
-            nn.Tanh(),
-            nn.Linear(128, 128),
-            nn.Tanh(),
+            nn.Linear(obs_dim, 512),
+            nn.ELU(),
+            nn.Linear(512, 256),
+            nn.ELU(),
+            nn.Linear(256, 128),
+            nn.ELU(),
             nn.Linear(128, 1)
         )
         

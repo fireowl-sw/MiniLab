@@ -212,3 +212,25 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
   - [vector_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/ipc/vector_env.py) (重构后引入向量化多环境独立高度上下限更新与判定)
   - [eval.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/scripts/eval.py) (评估帧数调整为 300 步)
   - `eval_run.mp4` (生成的 15 秒指尖精细搓动旋转视频)
+
+### 步骤 16：网络容量升级、约束放宽与 1000 轮训练无锁死操纵优化
+- **发生时间**：2026-06-13 13:14:00 (CST)
+- **目的作用**：解决圆柱体旋转后期关节僵硬卡死的问题，并将完整训练步数优化缩短为 1000 轮。
+- **物理/数学原原理与设计解析**：
+  1. **网络容量升级**：原网络的双层 MLP `[128, 128]` 无法有效拟合交替松开和微调手指（Finger Gaiting）的多模态复杂动作逻辑。本步骤将 Actor 和 Critic 的网络隐藏层结构统一升级为 `[512, 256, 128]` 并使用 `ELU` 激活函数，大幅提升拟合能力。
+  2. **约束惩罚放宽**：之前的策略极易卡死在 ~80° 的旋转角度，其根因在于关节角偏离惩罚 `pose_diff_penalty` (系数 $-0.4$) 与控制力矩惩罚 `torque_penalty` (系数 $-0.1$) 限制过死，导致手指无法大范围移动。一旦手指偏离初态到一定程度，其产生的惩罚累积会完全抵消旋转带来的奖励，策略因此选择“停滞不前”（僵硬锁死）以赚取最高的总奖励。本重构将 `pose_diff_penalty` 系数调小至 $-0.1$，`torque_penalty` 系数调小至 $-0.02$，显著放宽约束。
+  3. **1000 轮收敛验证**：在放宽约束和提升容量后，仅需 1000 轮训练（约 8-9 分钟）策略即可轻松收敛。在 15 秒离屏评估验证中，视频各关键帧（特别是 9s, 12s, 15s）的 MSE 差值保持在 20 以上的高动态区间，手指持续进行交替摆动和姿态微调，圆柱体旋转摆脱了后期的卡死硬锁，实现了流畅、长程的手内持续旋转操纵。
+- **执行的命令**：
+  ```bash
+  # 运行 1000 轮强化训练
+  .venv/bin/python scripts/train.py total_updates=1000
+  # 评估策略并录屏
+  .venv/bin/python scripts/eval.py record=True
+  ```
+- **产生的文件**：
+  - [ppo.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/algos/ppo.py) (升级为 [512, 256, 128] + ELU 网络结构)
+  - [vector_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/ipc/vector_env.py) (关节姿态偏差惩罚调至 -0.1，力矩惩罚调至 -0.02)
+  - [sharpa_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/envs/sharpa_env.py) (单环境惩罚系数对齐)
+  - [sharpa.yaml](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/conf/env/sharpa.yaml) (同步更新 pose_diff_scale 与 action_penalty_scale)
+  - [config.yaml](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/conf/config.yaml) (将默认训练步数总更新调整为 1000)
+  - `eval_run.mp4` (生成的 15 秒无锁死指尖搓动评估视频)
