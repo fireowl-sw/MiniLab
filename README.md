@@ -192,3 +192,21 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
   - [vector_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/ipc/vector_env.py) (重构后的 C++ BatchEnvPool 并行抓握状态采样向量化环境)
   - [eval.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/scripts/eval.py) (改用 launch_passive 控制循环与支持 Backspace 随机重置的评估脚本)
   - `eval_run.mp4` (生成的 100 步物理控制旋转诊断视频)
+
+### 步骤 15：指尖精细操纵约束与高度动态终止判定重构
+- **发生时间**：2026-06-13 11:28:40 (CST)
+- **目的作用**：约束圆柱体必须在指尖进行搓动操纵，防止其掉入手掌心包裹。
+- **物理/数学原理解析**：
+  在之前的方案中，坠落终止高度设为固定的绝对下限 $0.51906$（相比初始高度 $0.61906$ 宽限了 $10\text{cm}$）。这导致 PPO 策略偏向于选择“偷懒”的掌心包裹策略（Power Grasp），即将物体下滑到掌心区域，靠手掌的包夹和阻挡来防止物体坠落，同时尝试搓动。这种姿态阻碍了指尖的精细搓动（Precision Grasp）并容易形成挤压自锁。
+  本重构将终止判定条件改为动态的局部范围限制：以环境每次 reset 时初始物体高度 $z_0$ 为基准，仅允许物体在 $\pm 2\text{cm}$ 的高度区间内微幅浮动（$\text{reset\_height\_lower} = z_0 - 0.02$，$\text{reset\_height\_upper} = z_0 + 0.02$）。一旦超出此动态区间即判定为坠落（terminated = True）并扣除大额惩罚。这迫使策略放弃让物体滑落到掌心的行为，在仅能使用指尖进行捏合的同时实现了高效的精细操作。
+- **执行的命令**：
+  ```bash
+  # 运行快速 1000 轮指尖操纵策略训练
+  .venv/bin/python scripts/train.py total_updates=1000
+  # 生成离屏录屏视频
+  .venv/bin/python scripts/eval.py record=True
+  ```
+- **产生的文件**：
+  - [sharpa_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/envs/sharpa_env.py) (重构后引入单环境动态高度上下限判定)
+  - [vector_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/ipc/vector_env.py) (重构后引入向量化多环境独立高度上下限更新与判定)
+  - `eval_run.mp4` (新生成的指尖精细搓动旋转视频)

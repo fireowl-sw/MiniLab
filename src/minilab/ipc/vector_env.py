@@ -50,6 +50,10 @@ class BatchVectorEnv:
         
         # 初始化上一时刻虚拟控制目标 (对于每个平行环境)
         self.prev_targets = np.tile(self.default_angles, (self.num_envs, 1))
+        
+        # 记录每个环境独立的指尖高度限制范围
+        self.reset_height_lower = np.zeros(self.num_envs, dtype=np.float64)
+        self.reset_height_upper = np.zeros(self.num_envs, dtype=np.float64)
 
     def _generate_perturbed_states(self, n):
         """
@@ -57,6 +61,7 @@ class BatchVectorEnv:
         """
         states = np.zeros((n, self.nstate), dtype=np.float64)
         prev_targets = np.zeros((n, 22), dtype=np.float64)
+        z_0s = np.zeros(n, dtype=np.float64)
         
         # 批量随机选择索引
         indices = np.random.randint(0, len(self.dataset), size=n)
@@ -77,12 +82,13 @@ class BatchVectorEnv:
             # 序列化为 C++ 状态向量
             mujoco.mj_getState(self.model, self.tmp_data, states[i], int(mujoco.mjtState.mjSTATE_FULLPHYSICS))
             prev_targets[i] = S[:22]
+            z_0s[i] = S[24]
             
-        return states, prev_targets
+        return states, prev_targets, z_0s
 
     def reset(self):
         # 批量生成所有环境的随机初始状态
-        initial_states, prev_targets = self._generate_perturbed_states(self.num_envs)
+        initial_states, prev_targets, z_0s = self._generate_perturbed_states(self.num_envs)
         
         # 使用 pool.reset 批量初始化 C++ thread datas
         env_ids = np.arange(self.num_envs, dtype=np.int32)
@@ -91,6 +97,10 @@ class BatchVectorEnv:
         
         # 重置虚拟控制目标 prev_targets
         self.prev_targets = prev_targets.copy()
+        
+        # 保存动态上下限
+        self.reset_height_lower = z_0s - 0.02
+        self.reset_height_upper = z_0s + 0.02
         
         # 计算批量观测并返回 torch.Tensor
         obs = self._get_obs(self.states)
@@ -186,19 +196,21 @@ class BatchVectorEnv:
         total_rewards = rotate_reward + linvel_penalty + pose_diff_penalty + torque_penalty + work_penalty + object_pos_reward
         rewards = total_rewards * 0.05
         
-        # 5. 坠落终止判定 (低于锚点高度 10 厘米判定为坠落)
-        dones = object_pos[:, 2] < 0.51906
+        # 5. 坠落与指尖偏离终止判定 (低于或高于动态高度限制判定为终止)
+        dones = (object_pos[:, 2] < self.reset_height_lower) | (object_pos[:, 2] > self.reset_height_upper)
         # 坠落惩罚
         rewards[dones] -= 10.0
         
         # 6. Auto-reset 自动重置已完成/坠落的环境
         reset_indices = np.where(dones)[0]
         if len(reset_indices) > 0:
-            reset_init_states, reset_prev_targets = self._generate_perturbed_states(len(reset_indices))
+            reset_init_states, reset_prev_targets, reset_z_0s = self._generate_perturbed_states(len(reset_indices))
             reset_states, _ = self.pool.reset(reset_indices, reset_init_states)
             next_states[reset_indices] = reset_states
-            # 对重置的环境重置虚拟控制目标 prev_targets
+            # 对重置的环境重置虚拟控制目标 prev_targets 与动态上下限
             self.prev_targets[reset_indices] = reset_prev_targets
+            self.reset_height_lower[reset_indices] = reset_z_0s - 0.02
+            self.reset_height_upper[reset_indices] = reset_z_0s + 0.02
             
         # 7. 更新内部状态并计算观测
         self.states = next_states.copy()

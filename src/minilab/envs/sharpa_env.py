@@ -96,6 +96,11 @@ class SharpaHandGymEnv(gym.Env):
         self.data.qpos[self.num_joints:self.num_joints+3] = S[self.num_joints:self.num_joints+3]
         self.data.qpos[self.num_joints+3:self.num_joints+7] = S[self.num_joints+3:self.num_joints+7]
         
+        # 记录指尖高度限制范围
+        z_0 = S[24]
+        self.reset_height_lower = z_0 - 0.02
+        self.reset_height_upper = z_0 + 0.02
+        
         mujoco.mj_forward(self.model, self.data)
         return self._get_obs(), {}
 
@@ -152,9 +157,9 @@ class SharpaHandGymEnv(gym.Env):
         # 缩放总奖励为 0.05
         reward = total_reward * 0.05
         
-        # 6. 坠落终止判定与惩罚 (低于高度阈值 0.51906 判定为坠落并终止)
+        # 6. 坠落与指尖偏离终止判定与惩罚 (高度超出动态上下界判定为终止)
         terminated = False
-        if x_obj[2] < 0.51906:
+        if x_obj[2] < self.reset_height_lower or x_obj[2] > self.reset_height_upper:
             terminated = True
             reward -= 10.0
             
