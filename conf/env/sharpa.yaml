@@ -1,5 +1,5 @@
 name: sharpa_wave
-num_envs: 8
+num_envs: 64
 obs_dim: 60
 action_dim: 22
 
@@ -12,6 +12,6 @@ rotate_clip_min: -0.5
 rotate_clip_max: 0.5
 dist_reward_type: "linear"
 dist_scale: -10.0
-pose_diff_scale: -0.1
+pose_diff_scale: -0.4
 linvel_scale: -0.3
-action_penalty_scale: -0.002
+action_penalty_scale: -0.01
