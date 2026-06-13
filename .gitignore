@@ -49,3 +49,6 @@ htmlcov/
 
 # Hydra outputs
 outputs/
+
+# Video recordings
+*.mp4

@@ -40,63 +40,111 @@ def eval(cfg: DictConfig):
     model = mujoco.MjModel.from_xml_path(xml_path)
     data = mujoco.MjData(model)
     
-    # 初始化手部姿势与物体位置，匹配训练重置状态
-    from minilab.envs.sharpa_env import SOURCE_DEFAULT_HAND_JOINT_POS_DEG
-    default_angles = np.deg2rad(np.asarray(SOURCE_DEFAULT_HAND_JOINT_POS_DEG, dtype=np.float32))
-    object_pos_anchor = np.array([-0.09559, -0.00517, 0.61906], dtype=np.float32)
-    rot_axis = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+    # 从数据集中加载抓握姿态做初始化，匹配训练的随机化初始化
+    dataset_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "../assets/robots/sharpa_wave/sharpa_grasp_linspace_1.npy")
+    )
+    dataset = np.load(dataset_path)
+    idx = np.random.randint(0, len(dataset))
+    S = dataset[idx]
     
-    data.qpos[:action_dim] = default_angles
-    data.ctrl[:action_dim] = default_angles
-    data.qpos[action_dim:action_dim+3] = object_pos_anchor
-    data.qpos[action_dim+3:action_dim+7] = np.array([1.0, 0.0, 0.0, 0.0])
+    data.qpos[:action_dim] = S[:action_dim]
+    data.ctrl[:action_dim] = S[:action_dim]
+    prev_targets = S[:action_dim].copy()
+    data.qpos[action_dim:action_dim+3] = S[action_dim:action_dim+3]
+    data.qpos[action_dim+3:action_dim+7] = S[action_dim+3:action_dim+7]
     mujoco.mj_forward(model, data)
     
-    # 4. 编写物理控制回调函数 (注入训练好的策略)
-    def controller_cb(model, data):
-        # 提取当前状态的关节角度位置与速度
-        qpos = data.qpos[:action_dim].copy()
-        qvel = data.qvel[:action_dim].copy()
+    rot_axis = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+    ctrl_min = model.actuator_ctrlrange[:action_dim, 0] * 0.9
+    ctrl_max = model.actuator_ctrlrange[:action_dim, 1] * 0.9
+    prev_targets = np.clip(prev_targets, ctrl_min, ctrl_max)
+    
+    if cfg.get("record", False):
+        import imageio
+        video_path = "eval_run.mp4"
+        print(f"[评估进程] 正在启动离屏录像，视频将保存至: {video_path}")
         
-        # 提取物体坐标与旋转四元数
-        object_pos = data.qpos[action_dim:action_dim+3].copy()
-        object_quat = data.qpos[action_dim+3:action_dim+7].copy()
+        # 创建渲染器
+        renderer = mujoco.Renderer(model, height=480, width=640)
+        frames = []
         
-        # 提取物体的线速度与角速度
-        object_linvel = data.qvel[action_dim:action_dim+3].copy()
-        object_angvel = data.qvel[action_dim+3:action_dim+6].copy()
-        
-        # 拼接成 60 维观测向量
-        obs = np.concatenate([
-            qpos, qvel,
-            object_pos, object_quat,
-            object_linvel, object_angvel,
-            rot_axis
-        ]).astype(np.float32)
-        
-        # 转换为 PyTorch Tensor 输入给策略网络
-        obs_tensor = torch.from_numpy(obs).unsqueeze(0).to(device)
-        
-        with torch.no_grad():
-            # 获取确定性动作均值 (Evaluation 时不进行高斯随机采样)
-            action_mean = agent.actor(obs_tensor).squeeze(0).cpu().numpy()
+        for step in range(100):
+            # 1. 提取当前状态并推理动作
+            qpos = data.qpos[:action_dim].copy()
+            qvel = data.qvel[:action_dim].copy()
+            object_pos = data.qpos[action_dim:action_dim+3].copy()
+            object_quat = data.qpos[action_dim+3:action_dim+7].copy()
+            object_linvel = data.qvel[action_dim:action_dim+3].copy()
+            object_angvel = data.qvel[action_dim+3:action_dim+6].copy()
             
-        # 动作幅度限制在 [-1.0, 1.0] 内，计算物理增量位置控制
-        action_clipped = np.clip(action_mean, -1.0, 1.0)
-        current_qpos = data.qpos[:action_dim]
-        target_ctrl = current_qpos + action_clipped / 24.0
-        data.ctrl[:action_dim] = target_ctrl
+            obs = np.concatenate([
+                qpos, qvel,
+                object_pos, object_quat,
+                object_linvel, object_angvel,
+                rot_axis
+            ]).astype(np.float32)
+            
+            obs_tensor = torch.from_numpy(obs).unsqueeze(0).to(device)
+            with torch.no_grad():
+                action_mean = agent.actor(obs_tensor).squeeze(0).cpu().numpy()
+                
+            action_clipped = np.clip(action_mean, -1.0, 1.0)
+            target_ctrl = prev_targets + action_clipped / 24.0
+            prev_targets = np.clip(target_ctrl, ctrl_min, ctrl_max)
+            data.ctrl[:action_dim] = prev_targets
+            
+            # 2. 物理步进 12 次 (20Hz控制频率)
+            for _ in range(12):
+                mujoco.mj_step(model, data)
+                
+            # 3. 渲染画面帧
+            renderer.update_scene(data)
+            pixels = renderer.render()
+            frames.append(pixels)
+            
+        imageio.mimsave(video_path, frames, fps=20)
+        print(f"[评估进程] 离屏视频录制完成，已成功保存至: {video_path}")
+        renderer.close()
+    else:
+        # 交互式 GLFW 模式
+        step_counter = 0
         
-    # 5. 注册控制回调函数并启动可视化渲染窗口
-    mujoco.set_mjcb_control(controller_cb)
-    print("[评估进程] 正在启动 3D 可视化仿真窗口 (在 macOS 上以主线程运行)...")
-    
-    # 这一步会挂起当前线程，启动渲染窗口并计算物理步进，直到关闭窗口
-    mujoco.viewer.launch(model, data)
-    
-    # 清理回调函数
-    mujoco.set_mjcb_control(None)
-    print("[评估进程] 仿真窗口已关闭，评估结束。")
+        def controller_cb(model, data):
+            nonlocal step_counter, prev_targets
+            if step_counter % 12 == 0:
+                qpos = data.qpos[:action_dim].copy()
+                qvel = data.qvel[:action_dim].copy()
+                
+                object_pos = data.qpos[action_dim:action_dim+3].copy()
+                object_quat = data.qpos[action_dim+3:action_dim+7].copy()
+                
+                object_linvel = data.qvel[action_dim:action_dim+3].copy()
+                object_angvel = data.qvel[action_dim+3:action_dim+6].copy()
+                
+                obs = np.concatenate([
+                    qpos, qvel,
+                    object_pos, object_quat,
+                    object_linvel, object_angvel,
+                    rot_axis
+                ]).astype(np.float32)
+                
+                obs_tensor = torch.from_numpy(obs).unsqueeze(0).to(device)
+                with torch.no_grad():
+                    action_mean = agent.actor(obs_tensor).squeeze(0).cpu().numpy()
+                    
+                action_clipped = np.clip(action_mean, -1.0, 1.0)
+                target_ctrl = prev_targets + action_clipped / 24.0
+                prev_targets = np.clip(target_ctrl, ctrl_min, ctrl_max)
+                
+            data.ctrl[:action_dim] = prev_targets
+            step_counter += 1
+            
+        mujoco.set_mjcb_control(controller_cb)
+        print("[评估进程] 正在启动 3D 可视化仿真窗口 (在 macOS 上以主线程运行)...")
+        mujoco.viewer.launch(model, data)
+        mujoco.set_mjcb_control(None)
+        print("[评估进程] 仿真窗口已关闭，评估结束。")
 
 if __name__ == "__main__":
     eval()

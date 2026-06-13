@@ -13,6 +13,8 @@ dependencies = [
     "mujoco-uni==3.8.0",
     "numpy>=2.4.6",
     "torch>=2.12.0",
+    "imageio",
+    "imageio-ffmpeg",
 ]
 
 [build-system]

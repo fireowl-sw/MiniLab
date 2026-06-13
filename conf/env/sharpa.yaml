@@ -2,3 +2,16 @@ name: sharpa_wave
 num_envs: 8
 obs_dim: 60
 action_dim: 22
+
+# Control and reward configs matching UniLab specifications
+frame_skip: 12
+action_scale: 0.04167
+rotate_scale: 5.0
+use_abs_rotation: true
+rotate_clip_min: -0.5
+rotate_clip_max: 0.5
+dist_reward_type: "linear"
+dist_scale: -10.0
+pose_diff_scale: -0.4
+linvel_scale: -0.3
+action_penalty_scale: -0.01

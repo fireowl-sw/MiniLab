@@ -33,12 +33,24 @@ class SharpaHandGymEnv(gym.Env):
         # 目标旋转轴（设为绕 Z 轴旋转）
         self.rot_axis = np.array([0.0, 0.0, 1.0], dtype=np.float32)
         
-        # 4. 定义 22 维动作空间
+        # 4. 载入抓握数据集
+        dataset_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "../../../assets/robots/sharpa_wave/sharpa_grasp_linspace_1.npy")
+        )
+        self.dataset = np.load(dataset_path)
+        
+        # 5. 提取 actuator PD gains
+        self.kp = self.model.actuator_gainprm[:self.num_joints, 0]
+        self.kd = -self.model.actuator_biasprm[:self.num_joints, 2]
+        
+        # 6. 定义 0.9 缩放的控制范围上限与下限
+        self.ctrl_min = self.model.actuator_ctrlrange[:self.num_joints, 0] * 0.9
+        self.ctrl_max = self.model.actuator_ctrlrange[:self.num_joints, 1] * 0.9
+        
+        # 7. 定义动作空间与状态空间
         self.action_space = gym.spaces.Box(
             low=-1.0, high=1.0, shape=(self.num_joints,), dtype=np.float32
         )
-        
-        # 5. 定义 60 维状态观测空间：
         self.observation_space = gym.spaces.Box(
             low=-np.inf, high=np.inf, shape=(60,), dtype=np.float32
         )
@@ -71,16 +83,18 @@ class SharpaHandGymEnv(gym.Env):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
         
-        # 将手部关节和执行器初始化为捏紧姿态
-        self.data.qpos[:self.num_joints] = self.default_angles
-        self.data.ctrl[:self.num_joints] = self.default_angles
+        # 从数据集中均匀采样一行
+        idx = np.random.randint(0, len(self.dataset))
+        S = self.dataset[idx]
         
-        # 重置上一时刻虚拟控制目标
-        self.prev_targets = self.default_angles.copy()
+        # 设置手部关节角与控制目标为采样的初始状态
+        self.data.qpos[:self.num_joints] = S[:self.num_joints]
+        self.data.ctrl[:self.num_joints] = S[:self.num_joints]
+        self.prev_targets = S[:self.num_joints].copy()
         
-        # 将圆柱体位置重置到掌心上方，姿态重置为单位四元数
-        self.data.qpos[self.num_joints:self.num_joints+3] = self.object_pos_anchor
-        self.data.qpos[self.num_joints+3:self.num_joints+7] = np.array([1, 0, 0, 0])
+        # 设置物体初始位置与四元数姿态
+        self.data.qpos[self.num_joints:self.num_joints+3] = S[self.num_joints:self.num_joints+3]
+        self.data.qpos[self.num_joints+3:self.num_joints+7] = S[self.num_joints+3:self.num_joints+7]
         
         mujoco.mj_forward(self.model, self.data)
         return self._get_obs(), {}
@@ -88,12 +102,9 @@ class SharpaHandGymEnv(gym.Env):
     def step(self, action):
         action = np.clip(action, self.action_space.low, self.action_space.high)
         
-        # 1. 采用 UniLab 虚拟参考轨迹控制：增量加在 prev_targets 上，防止控制延迟
+        # 1. 采用 UniLab 虚拟参考轨迹控制：增量加在 prev_targets 上，防止控制延迟，并使用 0.9 缩放范围裁剪
         target_ctrl = self.prev_targets + action / 24.0
-        
-        ctrl_min = self.model.actuator_ctrlrange[:22, 0]
-        ctrl_max = self.model.actuator_ctrlrange[:22, 1]
-        self.prev_targets = np.clip(target_ctrl, ctrl_min, ctrl_max)
+        self.prev_targets = np.clip(target_ctrl, self.ctrl_min, self.ctrl_max)
         self.data.ctrl[:self.num_joints] = self.prev_targets
         
         # 2. 物理步进 12 次
@@ -104,40 +115,48 @@ class SharpaHandGymEnv(gym.Env):
         obs = self._get_obs()
         
         qpos = self.data.qpos[:self.num_joints]
-        object_pos = self.data.qpos[self.num_joints:self.num_joints+3]
-        object_linvel = self.data.qvel[self.num_joints:self.num_joints+3]
-        object_angvel = self.data.qvel[self.num_joints+3:self.num_joints+6]
+        qvel = self.data.qvel[:self.num_joints]
         
-        # 4. 计算复合奖励
-        # 4.1 对称绝对值旋转速度奖励 (权重 5.0，clip 0~1.0)
-        rotate_reward = 5.0 * np.clip(np.abs(object_angvel[2]), 0.0, 1.0)
+        # 提取物体观测
+        x_obj = self.data.qpos[self.num_joints:self.num_joints+3]
+        v_obj = self.data.qvel[self.num_joints:self.num_joints+3]
+        w_obj = self.data.qvel[self.num_joints+3:self.num_joints+6]
         
-        # 4.2 物体偏离中心锚点的距离惩罚 (改为常数梯度平滑惩罚，消除挤压自锁)
-        dist_to_anchor = np.linalg.norm(object_pos - self.object_pos_anchor)
-        dist_penalty = -10.0 * dist_to_anchor
+        # 4. 计算虚拟关节力矩
+        torque_virtual = self.kp * (self.prev_targets - qpos) - self.kd * qvel
         
-        # 4.3 关节姿态偏差惩罚 (对齐 UniLab，限制大拇指过度下压与手指被动撑开，权重 -0.4)
-        pose_diff_penalty = -0.4 * np.sum(np.square(qpos - self.default_angles))
+        # 5. 计算六项复合奖励
+        # 5.1 rotate (旋转奖励)
+        rotate_reward = np.clip(np.sum(w_obj * self.rot_axis), -0.5, 0.5) * 2.5
+        # 5.2 obj_linvel (物体平移惩罚)
+        linvel_penalty = np.sum(np.abs(v_obj)) * -0.3
+        # 5.3 pose_diff (关节偏离惩罚)
+        pose_diff_penalty = np.sum(np.square(qpos - self.default_angles)) * -0.4
+        # 5.4 torque (控制力矩惩罚)
+        torque_penalty = np.sum(np.square(torque_virtual)) * -0.1
+        # 5.5 work (物理功惩罚)
+        work_penalty = (np.sum(torque_virtual * qvel)) ** 2 * -0.5
+        # 5.6 object_pos (位置锚定奖励)
+        dist_to_anchor = np.linalg.norm(x_obj - self.object_pos_anchor)
+        object_pos_reward = (1.0 / (dist_to_anchor + 0.001)) * 0.003
         
-        # 4.4 物体移动速度惩罚 (权重 -0.3)
-        linvel_penalty = -0.3 * np.sum(np.abs(object_linvel))
-        
-        # 4.5 动作惩罚
-        action_penalty = -0.01 * np.sum(np.square(action))
-        
-        reward = float(
+        total_reward = float(
             rotate_reward + 
-            dist_penalty + 
-            pose_diff_penalty + 
             linvel_penalty + 
-            action_penalty
+            pose_diff_penalty + 
+            torque_penalty + 
+            work_penalty + 
+            object_pos_reward
         )
         
-        # 5. 坠落终止判定 (低于锚点高度 10 厘米判定为坠落)
+        # 缩放总奖励为 0.05
+        reward = total_reward * 0.05
+        
+        # 6. 坠落终止判定与惩罚 (低于高度阈值 0.51906 判定为坠落并终止)
         terminated = False
-        if object_pos[2] < (self.object_pos_anchor[2] - 0.1):
+        if x_obj[2] < 0.51906:
             terminated = True
-            reward -= 10.0  # 坠落惩罚
+            reward -= 10.0
             
         truncated = False
         return obs, reward, terminated, truncated, {}

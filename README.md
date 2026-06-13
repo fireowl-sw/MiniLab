@@ -169,6 +169,23 @@ MiniLab is a lightweight simulation and testing platform for robotic hand enviro
 - **产生的文件**：
   - [eval.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/scripts/eval.py) (重构后的手内操作策略 3D 渲染与评估脚本)
 
-
-
-
+### 步骤 14：手握姿态随机化、PD 虚拟力矩功惩罚、控制限收缩与 5000 轮训练视频诊断
+- **发生时间**：2026-06-13 10:37:00 (CST)
+- **目的作用**：
+  1. **资产拷贝与依赖升级**：拷贝 `sharpa_grasp_linspace_1.npy` 数据集资产，并在 `pyproject.toml` 添加 `imageio` 与 `imageio-ffmpeg`，实现视频离屏录制环境。
+  2. **初态随机化**：在 Reset 和 Auto-reset 时从抓握数据集中均匀随机采样初始关节与物体状态，提升策略泛化性。
+  3. **力矩与功奖励重构**：从模型中提取 PD 控制器增益参数，在物理步进后计算虚拟控制力矩与物理功，作为惩罚项引入复合奖励。
+  4. **控制限收缩**：将控制角度的目标指令剪切范围缩小至最大范围的 0.9，防止自锁。
+  5. **5000轮训练与离屏录屏**：完成 5000 轮（512 万步）的完整训练，模型稳定收敛至正奖励值；通过 `eval.py record=True` 成功生成 20 FPS 离屏诊断视频 `eval_run.mp4`，验证机器手在真实随机抓握初态下的极佳手内旋转操纵表现。
+- **执行的命令**：
+  ```bash
+  # 运行 PPO 训练
+  .venv/bin/python scripts/train.py total_updates=5000
+  # 生成离屏评估录像
+  .venv/bin/python scripts/eval.py record=True
+  ```
+- **产生的文件**：
+  - [sharpa_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/envs/sharpa_env.py) (重构后的 PD 力矩奖励与 0.9 限位 Gymnasium 环境)
+  - [vector_env.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/src/minilab/ipc/vector_env.py) (重构后的 C++ BatchEnvPool 并行抓握状态采样向量化环境)
+  - [eval.py](file:///Users/fireowl/Documents/auto_ws/robot_ws/MiniLab/scripts/eval.py) (新增离屏 MP4 视频录制支持的评估脚本)
+  - `eval_run.mp4` (生成的 100 步物理控制旋转诊断视频)
